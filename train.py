@@ -13,13 +13,15 @@ from utils.lr_scheduler import LR_Scheduler
 from utils.saver import Saver
 from utils.summaries import TensorboardSummary
 from utils.metrics import Evaluator
+from utils.utils import get_available_device
+
 
 class Trainer(object):
     def __init__(self, args):
         self.args = args
 
         # Define Saver
-        self.saver = Saver(args)
+        self.saver = Saver(args, args.exp_root)
         self.saver.save_experiment_config()
         # Define Tensorboard Summary
         self.summary = TensorboardSummary(self.saver.experiment_dir)
@@ -65,7 +67,7 @@ class Trainer(object):
 
         # Using cuda
         if args.cuda:
-            self.model = torch.nn.DataParallel(self.model, device_ids=self.args.gpu_ids)
+            self.model = torch.nn.DataParallel(self.model)
             patch_replication_callback(self.model)
             self.model = self.model.cuda()
 
@@ -175,29 +177,31 @@ class Trainer(object):
                 'best_pred': self.best_pred,
             }, is_best)
 
+
 def main():
     parser = argparse.ArgumentParser(description="PyTorch DeeplabV3Plus Training")
     parser.add_argument('--backbone', type=str, default='resnet',
                         choices=['resnet', 'xception', 'drn', 'mobilenet'],
                         help='backbone name (default: resnet)')
-    parser.add_argument('--out-stride', type=int, default=16,
+    parser.add_argument('--out_stride', type=int, default=16,
                         help='network output stride (default: 8)')
-    parser.add_argument('--dataset', type=str, default='pascal',
-                        choices=['pascal', 'coco', 'cityscapes'],
-                        help='dataset name (default: pascal)')
-    parser.add_argument('--use-sbd', action='store_true', default=True,
+    parser.add_argument('--dataset', type=str, default='rip',
+                        choices=['pascal', 'coco', 'cityscapes', 'rip'],
+                        help='dataset name (default: rip)')
+    parser.add_argument('--rip_mode', type=str, default='patches-level2')
+    parser.add_argument('--use_sbd', action='store_true', default=True,
                         help='whether to use SBD dataset (default: True)')
-    parser.add_argument('--workers', type=int, default=4,
+    parser.add_argument('--workers', type=int, default=8,
                         metavar='N', help='dataloader threads')
-    parser.add_argument('--base-size', type=int, default=513,
+    parser.add_argument('--base_size', type=int, default=800,
                         help='base image size')
-    parser.add_argument('--crop-size', type=int, default=513,
+    parser.add_argument('--crop_size', type=int, default=800,
                         help='crop image size')
-    parser.add_argument('--sync-bn', type=bool, default=None,
+    parser.add_argument('--sync_bn', type=bool, default=None,
                         help='whether to use sync bn (default: auto)')
-    parser.add_argument('--freeze-bn', type=bool, default=False,
+    parser.add_argument('--freeze_bn', type=bool, default=False,
                         help='whether to freeze bn parameters (default: False)')
-    parser.add_argument('--loss-type', type=str, default='ce',
+    parser.add_argument('--loss_type', type=str, default='ce',
                         choices=['ce', 'focal'],
                         help='loss func type (default: ce)')
     # training hyper params
@@ -205,33 +209,30 @@ def main():
                         help='number of epochs to train (default: auto)')
     parser.add_argument('--start_epoch', type=int, default=0,
                         metavar='N', help='start epochs (default:0)')
-    parser.add_argument('--batch-size', type=int, default=None,
+    parser.add_argument('--batch_size', type=int, default=None,
                         metavar='N', help='input batch size for \
                                 training (default: auto)')
-    parser.add_argument('--test-batch-size', type=int, default=None,
+    parser.add_argument('--test_batch_size', type=int, default=None,
                         metavar='N', help='input batch size for \
                                 testing (default: auto)')
-    parser.add_argument('--use-balanced-weights', action='store_true', default=False,
+    parser.add_argument('--use_balanced_weights', action='store_true', default=False,
                         help='whether to use balanced weights (default: False)')
     # optimizer params
     parser.add_argument('--lr', type=float, default=None, metavar='LR',
                         help='learning rate (default: auto)')
-    parser.add_argument('--lr-scheduler', type=str, default='poly',
+    parser.add_argument('--lr_scheduler', type=str, default='poly',
                         choices=['poly', 'step', 'cos'],
                         help='lr scheduler mode: (default: poly)')
     parser.add_argument('--momentum', type=float, default=0.9,
                         metavar='M', help='momentum (default: 0.9)')
-    parser.add_argument('--weight-decay', type=float, default=5e-4,
+    parser.add_argument('--weight_decay', type=float, default=5e-4,
                         metavar='M', help='w-decay (default: 5e-4)')
     parser.add_argument('--nesterov', action='store_true', default=False,
                         help='whether use nesterov (default: False)')
     # cuda, seed and logging
-    parser.add_argument('--no-cuda', action='store_true', default=
-                        False, help='disables CUDA training')
-    parser.add_argument('--gpu-ids', type=str, default='0',
-                        help='use which gpu to train, must be a \
-                        comma-separated list of integers only (default=0)')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
+    parser.add_argument('--gpus', type=int, default=1,
+                        help='how many gpus to use (default=1)')
+    parser.add_argument('--seed', type=int, default=123, metavar='S',
                         help='random seed (default: 1)')
     # checking point
     parser.add_argument('--resume', type=str, default=None,
@@ -242,21 +243,18 @@ def main():
     parser.add_argument('--ft', action='store_true', default=False,
                         help='finetuning on a different dataset')
     # evaluation option
-    parser.add_argument('--eval-interval', type=int, default=1,
+    parser.add_argument('--eval_interval', type=int, default=1,
                         help='evaluuation interval (default: 1)')
-    parser.add_argument('--no-val', action='store_true', default=False,
+    parser.add_argument('--no_val', action='store_true', default=False,
                         help='skip validation during training')
 
+    parser.add_argument('--exp_root', type=str, default='')
     args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
-    if args.cuda:
-        try:
-            args.gpu_ids = [int(s) for s in args.gpu_ids.split(',')]
-        except ValueError:
-            raise ValueError('Argument --gpu_ids must be a comma-separated list of integers only')
+
+    args.device, args.cuda = get_available_device(args.gpus)
 
     if args.sync_bn is None:
-        if args.cuda and len(args.gpu_ids) > 1:
+        if args.gpus > 1:
             args.sync_bn = True
         else:
             args.sync_bn = False
@@ -267,11 +265,12 @@ def main():
             'coco': 30,
             'cityscapes': 200,
             'pascal': 50,
+            'rip': 100
         }
         args.epochs = epoches[args.dataset.lower()]
 
     if args.batch_size is None:
-        args.batch_size = 4 * len(args.gpu_ids)
+        args.batch_size = 4 * args.gpus
 
     if args.test_batch_size is None:
         args.test_batch_size = args.batch_size
@@ -281,9 +280,9 @@ def main():
             'coco': 0.1,
             'cityscapes': 0.01,
             'pascal': 0.007,
+            'rip': 0.01
         }
         args.lr = lrs[args.dataset.lower()] / (4 * len(args.gpu_ids)) * args.batch_size
-
 
     if args.checkname is None:
         args.checkname = 'deeplab-'+str(args.backbone)
@@ -298,6 +297,7 @@ def main():
             trainer.validation(epoch)
 
     trainer.writer.close()
+
 
 if __name__ == "__main__":
    main()

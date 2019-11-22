@@ -9,6 +9,9 @@ class Path(object):
             return '/path/to/datasets/cityscapes/'     # foler that contains leftImg8bit/
         elif dataset == 'coco':
             return '/path/to/datasets/coco/'
+        elif dataset == 'rip':
+            import os.path
+            return os.path.expanduser('~/data/RipData/')
         else:
             print('Dataset {} not available.'.format(dataset))
             raise NotImplementedError

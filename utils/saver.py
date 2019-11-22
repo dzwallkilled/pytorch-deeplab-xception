@@ -4,11 +4,16 @@ import torch
 from collections import OrderedDict
 import glob
 
+
 class Saver(object):
 
-    def __init__(self, args):
+    def __init__(self, args, root=''):
         self.args = args
-        self.directory = os.path.join('run', args.dataset, args.checkname)
+        if root is '':
+            self.directory = os.path.join('run', args.dataset, args.checkname)
+        else:
+            self.directory = root
+            os.makedirs(self.directory, exist_ok=True)
         self.runs = sorted(glob.glob(os.path.join(self.directory, 'experiment_*')))
         run_id = int(self.runs[-1].split('_')[-1]) + 1 if self.runs else 0
 
