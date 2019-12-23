@@ -46,7 +46,13 @@ def make_data_loader(args, **kwargs):
         root = os.path.join(data_root, 'RipTrainingAllData')
 
         patches, level = args.rip_mode.split('-')
-        patches = 'COCOJSONPatches' if patches == 'patches' else 'COCOJSONs'
+        if patches == 'patches':
+            patches = 'COCOJSONPatches'
+        elif patches == 'patches_v1':
+            patches = 'COCOJSONPatches_v1'
+        else:
+            patches = 'COCOJSONs'
+        # patches = 'COCOJSONPatches' if patches == 'patches' else 'COCOJSONs'
         train_ann_file =os.path.join(data_root, patches, level, 'cv_5_fold', 'train_1.json')
         val_ann_file =os.path.join(data_root, patches, level, 'cv_5_fold', 'val_1.json')
 

@@ -3,7 +3,7 @@
 export PYTHONPATH="$(pwd)"
 
 
-level='level2'
+level='level1'
 patches='patches_v1'
 fold='1'
 

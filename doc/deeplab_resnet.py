@@ -301,13 +301,34 @@ def get_10x_lr_params(model):
 
 
 if __name__ == "__main__":
-    model = DeepLabv3_plus(nInputChannels=3, n_classes=21, os=16, pretrained=True, _print=True)
+    # model = DeepLabv3_plus(nInputChannels=3, n_classes=21, os=16, pretrained=True, _print=True)
+    # model.eval()
+    # image = torch.randn(1, 3, 512, 512)
+    # with torch.no_grad():
+    #     output = model.forward(image)
+    # print(output.size())
+    import cv2
+    import numpy as np
+    from torchvision.transforms import ToTensor
+    model_file = '/data2/data2/zewei/exp/RipData/DeepLabV3/patches/level2/CV5-1/experiment_10/checkpoint.pth.tar'
+    state_dict = torch.load(model_file)
+    img_file = 'tests/img_cv.png'
+    out_file = 'tests/img_seg.png'
+    image = cv2.imread(img_file)
+    image = cv2.resize(image, (512, 512))
+    image = torch.from_numpy(image).permute((2, 0, 1)).float()/255.
+    image = torch.stack([image], dim=0).cuda()
+    model = DeepLabv3_plus(nInputChannels=3, n_classes=3, pretrained=True, _print=True)
+    # model.load_state_dict(state_dict['state_dict'])
     model.eval()
-    image = torch.randn(1, 3, 512, 512)
+    model = model.cuda()
+
     with torch.no_grad():
         output = model.forward(image)
     print(output.size())
-
+    out_img = output[0].cpu().permute((1, 2, 0)).numpy()
+    out_img = (out_img * 255).astype(np.uint8)
+    cv2.imwrite(out_file, out_img)
 
 
 

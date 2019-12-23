@@ -39,10 +39,6 @@ def has_valid_annotation(anno):
 
 
 class RIPSegmentation(Dataset):
-    NUM_CLASSES = 21
-    CAT_LIST = [0, 5, 2, 16, 9, 44, 6, 3, 17, 62, 21, 67, 18, 19, 4,
-        1, 64, 20, 63, 7, 72]
-
     def __init__(self,
                  args,
                  root,
@@ -77,7 +73,6 @@ class RIPSegmentation(Dataset):
             v: k for k, v in self.json_category_id_to_contiguous_id.items()
         }
         self.id_to_img_map = {k: v for k, v in enumerate(self.ids)}
-
 
     def __getitem__(self, index):
         _img, _target = self._make_img_gt_point_pair(index)
@@ -114,7 +109,6 @@ class RIPSegmentation(Dataset):
             else:
                 mask[:, :] += (mask == 0) * (((np.sum(m, axis=2)) > 0) * c).astype(np.uint8)
         return mask
-
 
     def transform_tr(self, sample):
         composed_transforms = transforms.Compose([
