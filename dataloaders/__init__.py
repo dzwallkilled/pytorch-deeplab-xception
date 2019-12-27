@@ -59,7 +59,8 @@ def make_data_loader(args, **kwargs):
         train_set = rip.RIPSegmentation(args, split='train', root=root, ann_file=train_ann_file)
         val_set = rip.RIPSegmentation(args, split='val', root=root, ann_file=val_ann_file)
         num_classes = classes[level]
-        train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
+        # NOTE: drop_last=True here to avoid situation when batch_size=1 which causes BatchNorm2d errors
+        train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True, **kwargs)
         val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, **kwargs)
         test_loader = None
         return train_loader, val_loader, test_loader, num_classes
