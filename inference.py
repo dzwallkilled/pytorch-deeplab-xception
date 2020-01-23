@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import tqdm
 import argparse
+import math
 
 import torch
 from torchvision.transforms import Compose, ToTensor, ToPILImage, Normalize, CenterCrop, Resize
@@ -63,13 +64,20 @@ def main():
     model = model.to(args.device)
 
     img_files = ['doc/tests/img_cv.png']
-    out_file = 'doct/test/img_seg.png'
+    out_file = 'doc/tests/img_seg.png'
 
     transforms = Compose([
         ToTensor(),
         Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
     ])
     color_map = get_rip_labels()
+    img_cv = cv2.imread(img_files[0])
+    pred = process_single_large_image(model, img_cv)
+    mask = gen_mask(pred, nclass, color_map)
+    out_img = composite_image(img_cv, mask, alpha=0.2)
+    save_image(mask, out_file.split('.')[0] + f'_mask.png')
+    save_image(out_img, out_file.split('.')[0] + f'_com.png')
+    print(f'saved image {out_file}')
 
     with torch.no_grad():
         for img_file in img_files:
@@ -86,6 +94,8 @@ def main():
                 output = output.data.cpu().numpy()
                 pred = np.argmax(output, axis=1)
 
+                expanded_pred = torch.zeros()
+
                 # out_img = output[0].cpu().permute((1, 2, 0)).numpy()
                 # out_img = (out_img * 255).astype(np.uint8)
                 mask = gen_mask(pred[0], nclass, color_map)
@@ -93,6 +103,40 @@ def main():
                 save_image(mask, name + f'_patch{i:02d}_seg.' + ext)
                 save_image(out_img, name + f'_patch{i:02d}_seg_img.' + ext)
                 print(f'saved image {out_file}')
+
+
+def process_single_large_image(model, image, image_size=(1080, 1920), stride=(300, 700), patch_size=(800, 800)):
+    model.eval()
+    patches = decompose_image(image, None, patch_size, stride)
+    transforms = Compose([
+        ToTensor(),
+        Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+    ])
+
+    num_cols = math.ceil((image_size[1] - patch_size[1]) / stride[1]) + 1
+    final_output = []
+    with torch.no_grad():
+        for patch_cnt, patch in patches.items():
+            top_left_x = (patch_cnt % num_cols) * stride[1]
+            top_left_y = (patch_cnt // num_cols) * stride[0]
+
+            img = transforms(patch.image)
+            img = torch.stack([img], dim=0).cuda()
+
+            output = model(img)
+            output = output.detach().cpu()
+            expanded_output = torch.zeros((1, output.size(1)) + image_size, dtype=torch.float)
+            y0 = max(0, top_left_y)
+            y1 = min(top_left_y + patch_size[0], image_size[0])
+            x0 = max(0, top_left_x)
+            x1 = min(top_left_x + patch_size[1], image_size[1])
+            expanded_output[:, :, y0:y1, x0:x1] = output[:, :, y0-top_left_y:y1-top_left_y, x0-top_left_x:x1-top_left_x]
+            final_output.append(expanded_output)
+
+    final_output = torch.cat(final_output)
+    pred = final_output.max(0)[0].argmax(0)
+    pred = pred.cpu().numpy()
+    return pred
 
 
 def composite_image(arr1, arr2, alpha=0.2):
